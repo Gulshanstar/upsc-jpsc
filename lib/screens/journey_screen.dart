@@ -489,7 +489,7 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                         ? (entry.exerciseNote != null && entry.exerciseNote!.isNotEmpty
                             ? 'Completed (${entry.exerciseNote})'
                             : 'Completed ✅')
-                        : 'Skipped ❌',
+                        : 'Skipped (${entry.missedExerciseReason ?? 'No reason registered'}) ❌',
                     color: entry.didExercise == true ? AppColors.green : AppColors.textMuted,
                   ),
                 ],
@@ -590,6 +590,16 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
   // Exercise tracking state variables
   bool _didExercise = false;
   final _exerciseNoteController = TextEditingController();
+  String _missedExerciseReason = 'Rest day';
+  final _customExerciseReasonController = TextEditingController();
+  final List<String> _exerciseReasons = [
+    'Rest day',
+    'Tired / Lack of energy',
+    'Injured / Soreness',
+    'Weather conditions',
+    'Busy studying / Lack of time',
+    'Other'
+  ];
 
   final List<String> _reasons = ['Personal work', 'Not feeling well', 'Family event', 'Burnout', 'Travel', 'Other'];
 
@@ -604,6 +614,12 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
       _mood = entry.mood;
       _didExercise = entry.didExercise ?? false;
       _exerciseNoteController.text = entry.exerciseNote ?? '';
+      if (_exerciseReasons.contains(entry.missedExerciseReason)) {
+        _missedExerciseReason = entry.missedExerciseReason!;
+      } else if (entry.missedExerciseReason != null) {
+        _missedExerciseReason = 'Other';
+        _customExerciseReasonController.text = entry.missedExerciseReason!;
+      }
       if (_reasons.contains(entry.missedReason)) {
         _missedReason = entry.missedReason!;
       } else if (entry.missedReason != null) {
@@ -617,6 +633,7 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
   void dispose() {
     _noteController.dispose();
     _exerciseNoteController.dispose();
+    _customExerciseReasonController.dispose();
     super.dispose();
   }
 
@@ -874,6 +891,59 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                 ),
+              ] else ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Reason for skipping $exerciseType',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _missedExerciseReason,
+                      dropdownColor: AppColors.surface,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary),
+                      items: _exerciseReasons.map((r) {
+                        return DropdownMenuItem<String>(
+                          value: r,
+                          child: Text(
+                            r,
+                            style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 13),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _missedExerciseReason = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                if (_missedExerciseReason == 'Other') ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _customExerciseReasonController,
+                    style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Specify reason...',
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                  ),
+                ],
               ],
             ],
 
@@ -898,7 +968,15 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _saveJournalEntry,
+                onPressed: (() {
+                  final hasExerciseEnabled = exerciseType != null;
+                  if (hasExerciseEnabled && !_didExercise) {
+                    if (_missedExerciseReason == 'Other' && _customExerciseReasonController.text.trim().isEmpty) {
+                      return null;
+                    }
+                  }
+                  return _saveJournalEntry;
+                })(),
                 child: Text('Save Log Entry', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
               ),
             ),
@@ -954,6 +1032,11 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
       didExercise: isExerciseEnabled ? _didExercise : null,
       exerciseNote: (isExerciseEnabled && _didExercise && _exerciseNoteController.text.trim().isNotEmpty)
           ? _exerciseNoteController.text.trim()
+          : null,
+      missedExerciseReason: (isExerciseEnabled && !_didExercise)
+          ? (_missedExerciseReason == 'Other'
+              ? _customExerciseReasonController.text.trim()
+              : _missedExerciseReason)
           : null,
     );
 

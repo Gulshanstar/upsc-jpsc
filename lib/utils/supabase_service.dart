@@ -254,6 +254,9 @@ class SupabaseService {
         'topics_count': e.topicsCount,
         'mood': e.mood,
         'missed_reason': e.missedReason,
+        'did_exercise': e.didExercise,
+        'exercise_note': e.exerciseNote,
+        'missed_exercise_reason': e.missedExerciseReason,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).toList();
 
@@ -281,6 +284,9 @@ class SupabaseService {
         'topics_count': entry.topicsCount,
         'mood': entry.mood,
         'missed_reason': entry.missedReason,
+        'did_exercise': entry.didExercise,
+        'exercise_note': entry.exerciseNote,
+        'missed_exercise_reason': entry.missedExerciseReason,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
@@ -414,6 +420,9 @@ class SupabaseService {
           hoursStudied: (row['hours_studied'] as num?)?.toDouble() ?? 0,
           topicsCount: row['topics_count'] ?? 0,
           mood: row['mood'] ?? 3,
+          didExercise: row['did_exercise'],
+          exerciseNote: row['exercise_note'],
+          missedExerciseReason: row['missed_exercise_reason'],
         );
       }).toList();
     } catch (e) {

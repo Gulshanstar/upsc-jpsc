@@ -196,6 +196,7 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
     if (startOfPrep.isAfter(yesterday)) return [];
 
     final sessions = ref.read(sessionProvider);
+    final hasExerciseEnabled = profile.dailyExerciseType != null;
 
     var checkDay = startOfPrep;
     while (checkDay.isBefore(yesterday) || checkDay.isAtSameMomentAs(yesterday)) {
@@ -207,8 +208,17 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
       final journal = entryForDay(checkDay);
       final hasJournal = journal != null; // Either wrote note or gave reason
 
-      if (!hasSession && !hasJournal) {
-        pending.add(checkDay);
+      // Lock tracking details: If exercise is configured, they must study OR complete daily exercise.
+      // If they skipped both, they MUST register a missed study or missed exercise reason.
+      if (hasExerciseEnabled) {
+        final didExercise = journal?.didExercise == true;
+        if (!hasSession && !didExercise && !hasJournal) {
+          pending.add(checkDay);
+        }
+      } else {
+        if (!hasSession && !hasJournal) {
+          pending.add(checkDay);
+        }
       }
 
       checkDay = checkDay.add(const Duration(days: 1));
@@ -217,6 +227,8 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
   }
 
   Future<void> registerGapReason(DateTime day, String reason) async {
+    final profile = ref.read(userProfileProvider);
+    final isExerciseEnabled = profile.dailyExerciseType != null;
     final entry = JournalEntry(
       id: const Uuid().v4(),
       date: day,
@@ -225,6 +237,8 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
       note: 'Missed study day reason: $reason',
       hoursStudied: 0.0,
       topicsCount: 0,
+      didExercise: isExerciseEnabled ? false : null,
+      missedExerciseReason: isExerciseEnabled ? reason : null,
     );
     await upsertEntry(entry);
   }
