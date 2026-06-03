@@ -100,7 +100,9 @@ class DashboardScreen extends ConsumerWidget {
                         style: GoogleFonts.inter(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.w600)),
                   ).animate().fadeIn(delay: 200.ms),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _QuoteCard().animate().fadeIn(delay: 150.ms),
+                const SizedBox(height: 20),
 
                 // Today's snapshot card
                 _TodayCard(
@@ -268,12 +270,7 @@ class DashboardScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: SessionTile(session: s),
                   )).toList().animate(interval: 80.ms).fadeIn(delay: 550.ms).slideX(begin: 0.1),
-
-                const SizedBox(height: 24),
-
-                // Motivational quote
-                _QuoteCard().animate().fadeIn(delay: 700.ms),
-              ]),
+               ]),
             ),
           ),
         ],
