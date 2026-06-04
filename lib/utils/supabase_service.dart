@@ -257,6 +257,7 @@ class SupabaseService {
         'did_exercise': e.didExercise,
         'exercise_note': e.exerciseNote,
         'missed_exercise_reason': e.missedExerciseReason,
+        'goal': e.goal,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }).toList();
 
@@ -287,6 +288,7 @@ class SupabaseService {
         'did_exercise': entry.didExercise,
         'exercise_note': entry.exerciseNote,
         'missed_exercise_reason': entry.missedExerciseReason,
+        'goal': entry.goal,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
@@ -423,6 +425,7 @@ class SupabaseService {
           didExercise: row['did_exercise'],
           exerciseNote: row['exercise_note'],
           missedExerciseReason: row['missed_exercise_reason'],
+          goal: row['goal'],
         );
       }).toList();
     } catch (e) {

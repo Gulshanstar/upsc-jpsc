@@ -494,6 +494,33 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                   ),
                 ],
 
+                if (entry.goal != null && entry.goal!.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Goal / Thought of the Day',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.goldSurface.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.15)),
+                    ),
+                    child: Text(
+                      entry.goal!,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.gold,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+
                 if (entry.note != null && entry.note!.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Text(
@@ -586,6 +613,7 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
   int _mood = 3;
   String _missedReason = 'Personal work';
   final _noteController = TextEditingController();
+  final _goalController = TextEditingController();
   
   // Exercise tracking state variables
   bool _didExercise = false;
@@ -626,6 +654,7 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
         _missedReason = 'Other';
       }
       _noteController.text = entry.note ?? '';
+      _goalController.text = entry.goal ?? '';
     }
   }
 
@@ -634,6 +663,7 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
     _noteController.dispose();
     _exerciseNoteController.dispose();
     _customExerciseReasonController.dispose();
+    _goalController.dispose();
     super.dispose();
   }
 
@@ -949,6 +979,20 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
 
             const SizedBox(height: 20),
             Text(
+              'Goal / Thought of the Day',
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _goalController,
+              style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'e.g. Complete GS-1 physical geography, maintain focus...',
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            Text(
               'Journal Note',
               style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
             ),
@@ -1038,6 +1082,7 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
               ? _customExerciseReasonController.text.trim()
               : _missedExerciseReason)
           : null,
+      goal: _goalController.text.trim().isNotEmpty ? _goalController.text.trim() : null,
     );
 
     await widget.ref.read(journeyProvider.notifier).upsertEntry(entry);

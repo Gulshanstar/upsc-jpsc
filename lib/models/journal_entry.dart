@@ -10,6 +10,7 @@ class JournalEntry {
   final bool? didExercise; // Track if they completed exercise
   final String? exerciseNote; // Track exercise duration/notes
   final String? missedExerciseReason; // Track reason for skipping exercise
+  final String? goal; // Track daily goal or thought
 
   JournalEntry({
     required this.id,
@@ -23,6 +24,7 @@ class JournalEntry {
     this.didExercise,
     this.exerciseNote,
     this.missedExerciseReason,
+    this.goal,
   });
 
   Map<String, dynamic> toJson() => {
@@ -37,6 +39,7 @@ class JournalEntry {
         'didExercise': didExercise,
         'exerciseNote': exerciseNote,
         'missedExerciseReason': missedExerciseReason,
+        'goal': goal,
       };
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
@@ -51,5 +54,6 @@ class JournalEntry {
         didExercise: json['didExercise'],
         exerciseNote: json['exerciseNote'],
         missedExerciseReason: json['missedExerciseReason'],
+        goal: json['goal'],
       );
 }

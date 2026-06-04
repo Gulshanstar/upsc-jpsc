@@ -198,26 +198,32 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
     final sessions = ref.read(sessionProvider);
     final hasExerciseEnabled = profile.dailyExerciseType != null;
 
+    // 3-day grace period: only lock/block if a gap is older than 3 days from today
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final limitDay = todayStart.subtract(const Duration(days: 3));
+
     var checkDay = startOfPrep;
     while (checkDay.isBefore(yesterday) || checkDay.isAtSameMomentAs(yesterday)) {
-      final hasSession = sessions.any((s) =>
-          s.date.year == checkDay.year &&
-          s.date.month == checkDay.month &&
-          s.date.day == checkDay.day);
+      if (checkDay.isBefore(limitDay)) {
+        final hasSession = sessions.any((s) =>
+            s.date.year == checkDay.year &&
+            s.date.month == checkDay.month &&
+            s.date.day == checkDay.day);
 
-      final journal = entryForDay(checkDay);
-      final hasJournal = journal != null; // Either wrote note or gave reason
+        final journal = entryForDay(checkDay);
+        final hasJournal = journal != null; // Either wrote note or gave reason
 
-      // Lock tracking details: If exercise is configured, they must study OR complete daily exercise.
-      // If they skipped both, they MUST register a missed study or missed exercise reason.
-      if (hasExerciseEnabled) {
-        final didExercise = journal?.didExercise == true;
-        if (!hasSession && !didExercise && !hasJournal) {
-          pending.add(checkDay);
-        }
-      } else {
-        if (!hasSession && !hasJournal) {
-          pending.add(checkDay);
+        // Lock tracking details: If exercise is configured, they must study OR complete daily exercise.
+        // If they skipped both, they MUST register a missed study or missed exercise reason.
+        if (hasExerciseEnabled) {
+          final didExercise = journal?.didExercise == true;
+          if (!hasSession && !didExercise && !hasJournal) {
+            pending.add(checkDay);
+          }
+        } else {
+          if (!hasSession && !hasJournal) {
+            pending.add(checkDay);
+          }
         }
       }
 
