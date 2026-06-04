@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../models/journal_entry.dart';
 import '../providers/journey_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/session_provider.dart';
 import '../models/user_profile.dart';
 import '../widgets/heatmap_calendar.dart';
 
@@ -655,6 +656,27 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
       }
       _noteController.text = entry.note ?? '';
       _goalController.text = entry.goal ?? '';
+    } else {
+      // New entry: aggregate from sessions on widget.date
+      final sessions = widget.ref.read(sessionProvider);
+      final daySessions = sessions.where((s) =>
+          s.date.year == widget.date.year &&
+          s.date.month == widget.date.month &&
+          s.date.day == widget.date.day);
+      if (daySessions.isNotEmpty) {
+        _didStudy = true;
+        final totalHours = daySessions.fold<double>(0.0, (sum, s) => sum + (s.durationMinutes / 60.0));
+        _hours = totalHours > 16.0 ? 16.0 : double.parse(totalHours.toStringAsFixed(1));
+        _topics = daySessions.fold<int>(0, (sum, s) => sum + s.topicsCovered.length);
+      } else {
+        final today = DateTime.now();
+        final isToday = widget.date.year == today.year &&
+            widget.date.month == today.month &&
+            widget.date.day == today.day;
+        _didStudy = isToday;
+        _hours = isToday ? 4.0 : 0.0;
+        _topics = isToday ? 2 : 0;
+      }
     }
   }
 
