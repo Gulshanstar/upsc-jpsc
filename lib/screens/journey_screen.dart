@@ -22,7 +22,7 @@ class JourneyScreen extends ConsumerStatefulWidget {
   ConsumerState<JourneyScreen> createState() => _JourneyScreenState();
 }
 
-enum LogFilter { all, studyMissing, fitnessMissing, nothingMissing }
+enum LogFilter { all, studyCompleted, fitnessCompleted, studyMissing, fitnessMissing, nothingMissing }
 
 class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   bool _isExpanded = false;
@@ -38,6 +38,11 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
 
     final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
     final allCount = journalEntries.length;
+    final studyCompletedCount = journalEntries.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      return e.didStudy || studySessionDays.contains(dateOnly);
+    }).length;
+    final fitnessCompletedCount = journalEntries.where((e) => e.didExercise == true).length;
     final studyMissingCount = journalEntries.where((e) {
       final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
       return !e.didStudy && !studySessionDays.contains(dateOnly);
@@ -51,7 +56,12 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
     }).length;
 
     final filteredEntries = journalEntries.where((e) {
-      if (_selectedFilter == LogFilter.studyMissing) {
+      if (_selectedFilter == LogFilter.studyCompleted) {
+        final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+        return e.didStudy || studySessionDays.contains(dateOnly);
+      } else if (_selectedFilter == LogFilter.fitnessCompleted) {
+        return e.didExercise == true;
+      } else if (_selectedFilter == LogFilter.studyMissing) {
         final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
         return !e.didStudy && !studySessionDays.contains(dateOnly);
       } else if (_selectedFilter == LogFilter.fitnessMissing) {
@@ -296,6 +306,10 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                   child: Row(
                     children: [
                       _buildFilterChip(LogFilter.all, 'All', allCount),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(LogFilter.studyCompleted, 'Study Completed', studyCompletedCount),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(LogFilter.fitnessCompleted, 'Fitness Completed', fitnessCompletedCount),
                       const SizedBox(width: 8),
                       _buildFilterChip(LogFilter.studyMissing, 'Study Missing', studyMissingCount),
                       const SizedBox(width: 8),
