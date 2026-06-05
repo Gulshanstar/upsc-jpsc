@@ -1038,36 +1038,37 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.goldSurface : AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? AppColors.gold : AppColors.border,
-            width: isSelected ? 1.5 : 1,
+            width: isSelected ? 1.2 : 1,
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected ? AppColors.gold : AppColors.textSecondary,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.gold.withValues(alpha: 0.15) : AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 '$count',
                 style: GoogleFonts.inter(
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: FontWeight.w600,
                   color: isSelected ? AppColors.gold : AppColors.textMuted,
                 ),
