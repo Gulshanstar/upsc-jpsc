@@ -22,7 +22,7 @@ class JourneyScreen extends ConsumerStatefulWidget {
   ConsumerState<JourneyScreen> createState() => _JourneyScreenState();
 }
 
-enum LogFilter { all, studyMissing, fitnessMissing }
+enum LogFilter { all, studyMissing, fitnessMissing, nothingMissing }
 
 class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   bool _isExpanded = false;
@@ -43,6 +43,12 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
       return !e.didStudy && !studySessionDays.contains(dateOnly);
     }).length;
     final fitnessMissingCount = journalEntries.where((e) => e.didExercise == false).length;
+    final nothingMissingCount = journalEntries.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      final hasStudied = e.didStudy || studySessionDays.contains(dateOnly);
+      final hasFitness = e.didExercise != false;
+      return hasStudied && hasFitness;
+    }).length;
 
     final filteredEntries = journalEntries.where((e) {
       if (_selectedFilter == LogFilter.studyMissing) {
@@ -50,6 +56,11 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
         return !e.didStudy && !studySessionDays.contains(dateOnly);
       } else if (_selectedFilter == LogFilter.fitnessMissing) {
         return e.didExercise == false;
+      } else if (_selectedFilter == LogFilter.nothingMissing) {
+        final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+        final hasStudied = e.didStudy || studySessionDays.contains(dateOnly);
+        final hasFitness = e.didExercise != false;
+        return hasStudied && hasFitness;
       }
       return true;
     }).toList();
@@ -289,6 +300,8 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                       _buildFilterChip(LogFilter.studyMissing, 'Study Missing', studyMissingCount),
                       const SizedBox(width: 8),
                       _buildFilterChip(LogFilter.fitnessMissing, 'Fitness Missing', fitnessMissingCount),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(LogFilter.nothingMissing, 'Nothing Missing', nothingMissingCount),
                     ],
                   ),
                 ),
