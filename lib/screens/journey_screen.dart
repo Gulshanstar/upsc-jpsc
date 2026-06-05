@@ -446,6 +446,25 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
       AppColors.gold,
     ][entry.mood.clamp(1, 5) - 1];
 
+    final sessions = ref.read(sessionProvider);
+    final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+    final dateOnly = DateTime(entry.date.year, entry.date.month, entry.date.day);
+    final hasStudied = entry.didStudy || studySessionDays.contains(dateOnly);
+
+    final daySessions = sessions.where((s) =>
+        s.date.year == entry.date.year &&
+        s.date.month == entry.date.month &&
+        s.date.day == entry.date.day).toList();
+    final actualHours = daySessions.fold<double>(0.0, (sum, s) => sum + s.durationHours);
+    final actualTopics = daySessions.fold<int>(0, (sum, s) => sum + s.topicsCovered.length);
+
+    final displayHours = hasStudied
+        ? (actualHours > 0 ? actualHours : entry.hoursStudied)
+        : 0.0;
+    final displayTopics = hasStudied
+        ? (actualTopics > 0 ? actualTopics : entry.topicsCount)
+        : 0;
+
     return GestureDetector(
       onTap: () => _showDayDetailSheet(context, ref, entry.date),
       child: Container(
@@ -479,37 +498,37 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: entry.didStudy
+                    color: hasStudied
                         ? AppColors.green.withValues(alpha: 0.12)
                         : AppColors.red.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    entry.didStudy ? 'Studied' : 'Missed',
+                    hasStudied ? 'Studied' : 'Missed',
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: entry.didStudy ? AppColors.green : AppColors.red,
+                      color: hasStudied ? AppColors.green : AppColors.red,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            if (entry.didStudy) ...[
+            if (hasStudied) ...[
               Row(
                 children: [
                   const Icon(Icons.schedule_rounded, size: 13, color: AppColors.textMuted),
                   const SizedBox(width: 4),
                   Text(
-                    '${entry.hoursStudied.toStringAsFixed(1)} hrs',
+                    '${displayHours.toStringAsFixed(1)} hrs',
                     style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 16),
                   const Icon(Icons.topic_rounded, size: 13, color: AppColors.textMuted),
                   const SizedBox(width: 4),
                   Text(
-                    '${entry.topicsCount} topics covered',
+                    '$displayTopics topics covered',
                     style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
