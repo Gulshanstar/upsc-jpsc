@@ -7,6 +7,7 @@ import '../providers/syllabus_provider.dart';
 import '../models/topic.dart';
 import '../providers/user_provider.dart';
 import '../models/user_profile.dart';
+import '../providers/revision_provider.dart';
 
 class SyllabusScreen extends ConsumerStatefulWidget {
   const SyllabusScreen({super.key});
@@ -419,35 +420,64 @@ class _SubjectTileState extends State<_SubjectTile> {
   }
 }
 
-class _TopicRow extends StatelessWidget {
+class _TopicRow extends ConsumerWidget {
   final Topic topic;
   final WidgetRef ref;
   const _TopicRow({required this.topic, required this.ref});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final revisions = ref.watch(revisionProvider);
+    final hasOverdueRevision = revisions.any((r) =>
+        r.topicTitle.toLowerCase() == topic.title.toLowerCase() && r.isOverdue);
+
     return GestureDetector(
       onTap: () => _showTopicSheet(context),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(48, 8, 16, 8),
         child: Row(
           children: [
-            _StatusIcon(topic.status),
+            _StatusIcon(hasOverdueRevision ? TopicStatus.needsRevision : topic.status, isOverdue: hasOverdueRevision),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(topic.title,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: topic.status == TopicStatus.completed
-                            ? AppColors.textMuted
-                            : AppColors.textPrimary,
-                        decoration: topic.status == TopicStatus.completed
-                            ? TextDecoration.lineThrough
-                            : null,
-                      )),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(topic.title,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: topic.status == TopicStatus.completed
+                                  ? AppColors.textMuted
+                                  : AppColors.textPrimary,
+                              decoration: topic.status == TopicStatus.completed
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            )),
+                      ),
+                      if (hasOverdueRevision) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.red.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            'OVERDUE',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.red,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   if (topic.status == TopicStatus.inProgress && topic.progressPercent > 0.0 && topic.progressPercent < 1.0) ...[
                     const SizedBox(height: 4),
                     Row(
@@ -495,10 +525,14 @@ class _TopicRow extends StatelessWidget {
 
 class _StatusIcon extends StatelessWidget {
   final TopicStatus status;
-  const _StatusIcon(this.status);
+  final bool isOverdue;
+  const _StatusIcon(this.status, {this.isOverdue = false});
 
   @override
   Widget build(BuildContext context) {
+    if (isOverdue) {
+      return const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.red);
+    }
     switch (status) {
       case TopicStatus.completed:
         return const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green);

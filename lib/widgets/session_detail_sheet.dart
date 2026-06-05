@@ -8,6 +8,7 @@ import '../models/study_session.dart' as ss;
 import '../models/revision_item.dart';
 import '../providers/revision_provider.dart';
 import '../providers/syllabus_provider.dart';
+import 'session_log_sheet.dart';
 
 class SessionDetailSheet extends ConsumerWidget {
   final ss.StudySession session;
@@ -25,8 +26,9 @@ class SessionDetailSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final revisions = ref.watch(revisionProvider);
+    ref.watch(revisionProvider);
     final revisionNotifier = ref.read(revisionProvider.notifier);
+    final revisions = revisionNotifier.filteredState;
 
     // Get shift label and icon
     String shiftLabel = '';
@@ -118,6 +120,21 @@ class SessionDetailSheet extends ConsumerWidget {
                           ),
                         ],
                       ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: AppColors.gold),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => SessionLogSheet(
+                            ref: ref,
+                            editingSession: session,
+                          ),
+                        );
+                      },
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),

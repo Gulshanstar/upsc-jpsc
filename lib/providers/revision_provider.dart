@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/revision_item.dart';
 import '../utils/supabase_service.dart';
 import 'user_provider.dart';
+import 'session_provider.dart';
 import '../models/user_profile.dart';
 
 final revisionProvider =
@@ -33,9 +34,59 @@ class RevisionNotifier extends StateNotifier<List<RevisionItem>> {
       final list = jsonDecode(json) as List;
       state = list.map((e) => RevisionItem.fromJson(e)).toList();
     } else {
-      state = [];
+      // Import mock data to seed initial revisions
+      final mockData = seedMockRevisionsIfNeeded();
+      state = mockData;
       await _saveLocalOnly();
     }
+  }
+
+  List<RevisionItem> seedMockRevisionsIfNeeded() {
+    final now = DateTime.now();
+    return [
+      RevisionItem(
+        id: 'r1', topicId: 'gs1_indian_heritage_0',
+        topicTitle: 'Indus Valley Civilisation',
+        subjectName: 'Indian Heritage', sectionName: 'GS-1',
+        subjectId: 'gs1_indian_heritage', examType: 'upsc',
+        nextDueDate: now, lastReviewedDate: now.subtract(const Duration(days: 3)),
+        revisionCount: 2, intervalDays: 3, reviewHistory: [true, true],
+      ),
+      RevisionItem(
+        id: 'r2', topicId: 'gs2_polity_2',
+        topicTitle: 'Parliamentary System',
+        subjectName: 'Polity', sectionName: 'GS-2',
+        subjectId: 'gs2_polity', examType: 'upsc',
+        nextDueDate: now, lastReviewedDate: now.subtract(const Duration(days: 1)),
+        revisionCount: 1, intervalDays: 1, reviewHistory: [false],
+      ),
+      RevisionItem(
+        id: 'r3', topicId: 'gs3_economy_2',
+        topicTitle: 'GDP, GNP, NNP — Concepts',
+        subjectName: 'Indian Economy', sectionName: 'GS-3',
+        subjectId: 'gs3_economy', examType: 'upsc',
+        nextDueDate: now, lastReviewedDate: now.subtract(const Duration(days: 7)),
+        revisionCount: 3, intervalDays: 7, reviewHistory: [true, true, false],
+      ),
+      RevisionItem(
+        id: 'r4', topicId: 'gs1_geography_2',
+        topicTitle: 'Plate Tectonics',
+        subjectName: 'Geography', sectionName: 'GS-1',
+        subjectId: 'gs1_geography', examType: 'upsc',
+        nextDueDate: now.add(const Duration(days: 2)),
+        lastReviewedDate: now.subtract(const Duration(days: 5)),
+        revisionCount: 2, intervalDays: 7, reviewHistory: [true, true],
+      ),
+      RevisionItem(
+        id: 'r5', topicId: 'jpsc_jh_history_2',
+        topicTitle: 'Birsa Munda Movement',
+        subjectName: 'Jharkhand History', sectionName: 'Pre GS-II',
+        subjectId: 'jpsc_jh_history', examType: 'jpsc',
+        nextDueDate: now.add(const Duration(days: 1)),
+        lastReviewedDate: now.subtract(const Duration(days: 2)),
+        revisionCount: 1, intervalDays: 3, reviewHistory: [true],
+      ),
+    ];
   }
 
   Future<void> _saveLocalOnly() async {
@@ -54,7 +105,11 @@ class RevisionNotifier extends StateNotifier<List<RevisionItem>> {
 
   List<RevisionItem> get filteredState {
     final profile = ref.read(userProfileProvider);
+    final sessions = ref.read(sessionProvider);
+    
+    // Keep all revision items (representing real data)
     var list = state;
+
     if (profile.preparationStartDate != null) {
       final startOfPrep = DateTime(
         profile.preparationStartDate!.year,
@@ -97,7 +152,32 @@ class RevisionNotifier extends StateNotifier<List<RevisionItem>> {
   Future<void> reviewItem(String id, bool remembered) async {
     state = state.map((r) {
       if (r.id == id) {
+        if (!r.isDueToday && !r.isOverdue) {
+          return r;
+        }
         r.updateAfterReview(remembered);
+        return r;
+      }
+      return r;
+    }).toList();
+    await _save();
+  }
+
+  Future<void> revertReview(String id, DateTime? prevLastReviewedDate, int prevIntervalDays, double prevEaseFactor) async {
+    state = state.map((r) {
+      if (r.id == id) {
+        r.revertLastReview(prevLastReviewedDate, prevIntervalDays, prevEaseFactor);
+        return r;
+      }
+      return r;
+    }).toList();
+    await _save();
+  }
+
+  Future<void> toggleLockRevision(String id) async {
+    state = state.map((r) {
+      if (r.id == id) {
+        r.lockedForEver = !r.lockedForEver;
         return r;
       }
       return r;

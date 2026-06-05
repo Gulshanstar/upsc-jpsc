@@ -32,6 +32,17 @@ class DashboardScreen extends ConsumerWidget {
     final dueCount = revisions.where((r) => r.isDueToday).length;
     final journeyNotifier = ref.read(journeyProvider.notifier);
     final streak = journeyNotifier.currentStreak;
+    final journalEntries = ref.watch(journeyProvider);
+    final studySessionDays = filteredSessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+    final journalStudyDays = journalEntries.where((e) => e.didStudy).map((e) => DateTime(e.date.year, e.date.month, e.date.day)).toSet();
+    final allStudiedDays = {...studySessionDays, ...journalStudyDays};
+    final studiedDays = allStudiedDays.length;
+    final missedDays = journalEntries.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      return !e.didStudy && e.missedReason != null && !studySessionDays.contains(dateOnly);
+    }).length;
+    final exerciseDays = journalEntries.where((e) => e.didExercise == true).length;
+    final missedExerciseDays = journalEntries.where((e) => e.didExercise == false).length;
     final totalHoursDevoted = filteredSessions.fold<double>(0.0, (sum, s) => sum + s.durationHours);
     final hour = DateTime.now().hour;
     final greeting = hour < 12
@@ -61,6 +72,26 @@ class DashboardScreen extends ConsumerWidget {
               ],
             ),
             actions: [
+              TextButton.icon(
+                onPressed: () => _showSessionSheet(context, ref),
+                icon: const Icon(Icons.add_rounded, color: AppColors.gold, size: 18),
+                label: Text(
+                  'Log Session',
+                  style: GoogleFonts.inter(
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  backgroundColor: AppColors.goldSurface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
                 onPressed: () {},
@@ -173,11 +204,11 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _QuickStat(
-                            icon: Icons.flip_rounded,
-                            iconColor: AppColors.blue,
-                            value: '$dueCount',
-                            label: 'Due today',
+                          child: _ActivityStatsCard(
+                            studiedDays: studiedDays,
+                            missedDays: missedDays,
+                            exerciseDays: exerciseDays,
+                            missedExerciseDays: missedExerciseDays,
                           ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.1),
                         ),
                       ],
@@ -275,11 +306,6 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showSessionSheet(context, ref),
-        icon: const Icon(Icons.add_rounded),
-        label: Text('Log Session', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-      ).animate().scale(delay: 800.ms),
     );
   }
 
@@ -539,6 +565,89 @@ class _EmptyState extends StatelessWidget {
         child: Text(message,
             style: GoogleFonts.inter(fontSize: 13, color: AppColors.textMuted),
             textAlign: TextAlign.center),
+      ),
+    );
+  }
+}
+
+class _ActivityStatsCard extends StatelessWidget {
+  final int studiedDays;
+  final int missedDays;
+  final int exerciseDays;
+  final int missedExerciseDays;
+
+  const _ActivityStatsCard({
+    required this.studiedDays,
+    required this.missedDays,
+    required this.exerciseDays,
+    required this.missedExerciseDays,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      height: 98,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_turned_in_rounded, color: AppColors.blue, size: 15),
+              const SizedBox(width: 6),
+              Text(
+                'Activity stats',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Study:',
+                style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                '$studiedDays studied / $missedDays missed',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: studiedDays >= missedDays ? AppColors.green : AppColors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Exercise:',
+                style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                '$exerciseDays active / $missedExerciseDays missed',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: exerciseDays >= missedExerciseDays ? AppColors.green : AppColors.red,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

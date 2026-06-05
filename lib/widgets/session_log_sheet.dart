@@ -11,10 +11,14 @@ import '../providers/user_provider.dart';
 import '../models/user_profile.dart';
 import '../providers/revision_provider.dart';
 import '../models/revision_item.dart';
+import '../providers/journey_provider.dart';
+import '../models/journal_entry.dart';
 
 class SessionLogSheet extends ConsumerStatefulWidget {
   final WidgetRef ref;
-  const SessionLogSheet({required this.ref, super.key});
+  final DateTime? initialDate;
+  final ss.StudySession? editingSession;
+  const SessionLogSheet({required this.ref, this.initialDate, this.editingSession, super.key});
 
   @override
   ConsumerState<SessionLogSheet> createState() => _SessionLogSheetState();
@@ -37,23 +41,59 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
   @override
   void initState() {
     super.initState();
-    final examMode = ref.read(userProfileProvider).examMode;
-    if (examMode == ExamMode.jpsc) {
-      _examType = 'jpsc';
+    
+    if (widget.editingSession != null) {
+      final session = widget.editingSession!;
+      _examType = session.examType;
+      _selectedDate = session.date;
+      _durationMinutes = session.durationMinutes;
+      _selectedShift = session.shift ?? 'morning';
+      _notesController.text = session.notes ?? '';
+      
+      final syllabusState = ref.read(syllabusProvider);
+      final sections = syllabusState.sectionsFor(_examType);
+      final allSubjects = sections.expand((s) => s.subjects).toList();
+      
+      try {
+        _selectedSubject = allSubjects.firstWhere((sub) => sub.id == session.subjectId);
+      } catch (_) {
+        _selectedSubject = allSubjects.isNotEmpty ? allSubjects.first : null;
+      }
+      
+      if (_selectedSubject != null) {
+        for (final topicTitle in session.topicsCovered) {
+          try {
+            final topic = _selectedSubject!.topics.firstWhere(
+              (t) => t.title == topicTitle
+            );
+            _selectedTopics.add(topic);
+            _topicStatuses[topic.id] = topic.status;
+            _topicProgresses[topic.id] = topic.progressPercent;
+            _topicScheduleRevisions[topic.id] = false;
+          } catch (_) {}
+        }
+      }
     } else {
-      _examType = 'upsc';
-    }
+      final examMode = ref.read(userProfileProvider).examMode;
+      if (examMode == ExamMode.jpsc) {
+        _examType = 'jpsc';
+      } else {
+        _examType = 'upsc';
+      }
 
-    // Default shift based on current hour
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) {
-      _selectedShift = 'morning';
-    } else if (hour >= 12 && hour < 17) {
-      _selectedShift = 'afternoon';
-    } else if (hour >= 17 && hour < 21) {
-      _selectedShift = 'evening';
-    } else {
-      _selectedShift = 'night';
+      _selectedDate = widget.initialDate ?? DateTime.now();
+
+      // Default shift based on current hour
+      final hour = DateTime.now().hour;
+      if (hour >= 5 && hour < 12) {
+        _selectedShift = 'morning';
+      } else if (hour >= 12 && hour < 17) {
+        _selectedShift = 'afternoon';
+      } else if (hour >= 17 && hour < 21) {
+        _selectedShift = 'evening';
+      } else {
+        _selectedShift = 'night';
+      }
     }
   }
 
@@ -246,6 +286,15 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
                   initialDate: _selectedDate.isBefore(firstDate) ? firstDate : _selectedDate,
                   firstDate: firstDate,
                   lastDate: now,
+                  selectableDayPredicate: (day) {
+                    final normalized = DateTime(day.year, day.month, day.day);
+                    final journeyNotifier = ref.read(journeyProvider.notifier);
+                    final entry = journeyNotifier.entryForDay(normalized);
+                    if (entry != null && !entry.didStudy && entry.missedReason != null) {
+                      return false;
+                    }
+                    return true;
+                  },
                   builder: (context, child) {
                     return Theme(
                       data: Theme.of(context).copyWith(
@@ -610,19 +659,54 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
             const SizedBox(height: 24),
 
             // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _logSession,
-                child: Text(
-                  'Log Study Session',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+            Builder(
+              builder: (context) {
+                final journeyNotifier = ref.watch(journeyProvider.notifier);
+                final existingEntry = journeyNotifier.entryForDay(_selectedDate);
+                final isDateAccountable = existingEntry != null && !existingEntry.didStudy && existingEntry.missedReason != null;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isDateAccountable) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: AppColors.red, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Accountability reason already logged for this day. You cannot log a study session.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppColors.red,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isDateAccountable ? null : _logSession,
+                        style: ElevatedButton.styleFrom(
+                          disabledBackgroundColor: AppColors.border,
+                        ),
+                        child: Text(
+                          'Log Study Session',
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
             ),
           ],
         ),
@@ -715,7 +799,7 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
     final uuid = const Uuid();
 
     final studySession = ss.StudySession(
-      id: uuid.v4(),
+      id: widget.editingSession?.id ?? uuid.v4(),
       date: _selectedDate,
       subjectId: _selectedSubject!.id,
       subjectName: _selectedSubject!.title,
@@ -730,12 +814,16 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
     );
 
     // Save study session
-    await widget.ref.read(sessionProvider.notifier).addSession(studySession);
+    if (widget.editingSession != null) {
+      await ref.read(sessionProvider.notifier).updateSession(studySession);
+    } else {
+      await ref.read(sessionProvider.notifier).addSession(studySession);
+    }
 
     // Mark selected topics as completed & schedule forgetting curve revisions
-    final syllabusNotifier = widget.ref.read(syllabusProvider.notifier);
-    final revisionNotifier = widget.ref.read(revisionProvider.notifier);
-    final existingRevisions = widget.ref.read(revisionProvider);
+    final syllabusNotifier = ref.read(syllabusProvider.notifier);
+    final revisionNotifier = ref.read(revisionProvider.notifier);
+    final existingRevisions = ref.read(revisionProvider);
 
     for (final topic in _selectedTopics) {
       final status = _topicStatuses[topic.id] ?? TopicStatus.completed;
@@ -763,6 +851,25 @@ class _SessionLogSheetState extends ConsumerState<SessionLogSheet> {
           await revisionNotifier.addRevisionItem(revItem);
         }
       }
+    }
+
+    // Clean up missed day reason if they previously logged accountability and now logged study session.
+    final journeyNotifier = ref.read(journeyProvider.notifier);
+    final existingEntry = journeyNotifier.entryForDay(_selectedDate);
+    if (existingEntry != null && existingEntry.didStudy == false) {
+      final updatedEntry = JournalEntry(
+        id: existingEntry.id,
+        date: existingEntry.date,
+        didStudy: true,
+        hoursStudied: _durationMinutes / 60.0,
+        topicsCount: _selectedTopics.length,
+        note: existingEntry.note != null && existingEntry.note!.startsWith('Missed study day reason:') ? null : existingEntry.note,
+        mood: existingEntry.mood,
+        missedReason: null,
+        didExercise: existingEntry.didExercise,
+        missedExerciseReason: existingEntry.missedExerciseReason,
+      );
+      await journeyNotifier.upsertEntry(updatedEntry);
     }
 
     Navigator.pop(context);

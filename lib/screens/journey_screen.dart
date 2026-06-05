@@ -11,6 +11,9 @@ import '../providers/user_provider.dart';
 import '../providers/session_provider.dart';
 import '../models/user_profile.dart';
 import '../widgets/heatmap_calendar.dart';
+import '../widgets/gap_resolver_sheet.dart';
+import '../widgets/session_log_sheet.dart';
+import '../widgets/fitness_log_sheet.dart';
 
 class JourneyScreen extends ConsumerStatefulWidget {
   const JourneyScreen({super.key});
@@ -25,8 +28,10 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(journeyProvider);
+    ref.watch(sessionProvider);
     final journalEntries = ref.read(journeyProvider.notifier).filteredState;
     final journeyNotifier = ref.read(journeyProvider.notifier);
+    final sessionNotifier = ref.read(sessionProvider.notifier);
 
     final currentStreak = journeyNotifier.currentStreak;
     final longestStreak = journeyNotifier.longestStreak;
@@ -39,18 +44,11 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
         slivers: [
           SliverAppBar(
             title: Text(
-              'Journey Journal',
+              'Activity Tracker',
               style: GoogleFonts.instrumentSerif(fontSize: 24),
             ),
             backgroundColor: AppColors.background,
             floating: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add_comment_rounded, color: AppColors.gold),
-                tooltip: "Write today's journal",
-                onPressed: () => _showEditEntrySheet(context, ref, DateTime.now()),
-              ),
-            ],
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
@@ -58,9 +56,70 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
               delegate: SliverChildListDelegate([
                 // Heatmap Calendar
                 HeatmapCalendar(
-                  datasets: journeyNotifier.heatmapData,
-                  onDayTap: (date, hours) => _showDayDetailSheet(context, ref, date),
+                  datasets: sessionNotifier.heatmapData,
+                  onDayTap: (date, hours) {
+                    final profile = ref.read(userProfileProvider);
+                    final startOfPrep = profile.preparationStartDate != null
+                        ? DateTime(profile.preparationStartDate!.year, profile.preparationStartDate!.month, profile.preparationStartDate!.day)
+                        : null;
+                    final now = DateTime.now();
+                    final todayStart = DateTime(now.year, now.month, now.day);
+                    
+                    if (startOfPrep != null && date.isBefore(startOfPrep)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Cannot log or view activities before your preparation start date (${DateFormat('dd/MM/yyyy').format(startOfPrep)}).'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      return;
+                    }
+                    if (date.isAfter(todayStart)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Cannot log or view activities for future dates.'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      return;
+                    }
+                    _showDayDetailSheet(context, ref, date);
+                  },
                 ).animate().fadeIn(duration: 400.ms),
+                const SizedBox(height: 12),
+
+                // Independent Fitness Button
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => FitnessLogSheet(ref: ref),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.green.withValues(alpha: 0.12),
+                          foregroundColor: AppColors.green,
+                          side: const BorderSide(color: AppColors.green, width: 1.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        icon: const Icon(Icons.directions_run_rounded, size: 18),
+                        label: Text(
+                          'Log Fitness / Exercise',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ).animate().fadeIn(delay: 100.ms),
                 const SizedBox(height: 20),
 
                 // Stats row
@@ -98,34 +157,88 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
 
                 // Gap analysis or advice panel
                 if (journeyNotifier.missedDaysThisMonth > 0)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.red.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline_rounded, color: AppColors.red, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'You missed ${journeyNotifier.missedDaysThisMonth} days of study this month. Keep up the revision consistency to retain what you learned!',
-                            style: GoogleFonts.inter(
-                              fontSize: 12.5,
-                              color: AppColors.textSecondary,
-                              height: 1.5,
+                  GestureDetector(
+                    onTap: () {
+                      final now = DateTime.now();
+                      final missedEntries = journalEntries.where((e) =>
+                          e.date.year == now.year &&
+                          e.date.month == now.month &&
+                          !e.didStudy).toList()
+                        ..sort((a, b) => b.date.compareTo(a.date));
+
+                      showDialog(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            backgroundColor: AppColors.surface,
+                            title: Text(
+                              'Missed Study Dates',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            ),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: missedEntries.length,
+                                itemBuilder: (context, index) {
+                                  final entry = missedEntries[index];
+                                  final dateStr = DateFormat('EEEE, dd MMMM yyyy').format(entry.date);
+                                  return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Icons.cancel_rounded, color: AppColors.red, size: 20),
+                                    title: Text(
+                                      dateStr,
+                                      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                                    ),
+                                    subtitle: Text(
+                                      'Reason: ${entry.missedReason ?? "Unspecified"}',
+                                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(
+                                  'Dismiss',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.gold),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.red.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.red.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: AppColors.red, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'You missed ${journeyNotifier.missedDaysThisMonth} days of study this month. Keep up the revision consistency to retain what you learned! (Tap to see dates)',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                color: AppColors.textSecondary,
+                                height: 1.5,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ).animate().fadeIn(delay: 200.ms),
                 const SizedBox(height: 28),
 
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'Recent Log Entries',
@@ -133,13 +246,6 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _showEditEntrySheet(context, ref, DateTime.now()),
-                      child: Text(
-                        'Log Today',
-                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.gold),
                       ),
                     ),
                   ],
@@ -388,12 +494,18 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   void _showDayDetailSheet(BuildContext context, WidgetRef ref, DateTime date) {
     final entry = ref.read(journeyProvider.notifier).entryForDay(date);
     final formattedDate = DateFormat('MMMM d, yyyy').format(date);
-    final moodText = entry != null
-        ? const ['Frustrated', 'Neutral', 'Good', 'Focused', 'Outstanding'][entry.mood.clamp(1, 5) - 1]
-        : 'Neutral';
+
+    final sessions = ref.read(sessionProvider).where((s) =>
+        s.date.year == date.year &&
+        s.date.month == date.month &&
+        s.date.day == date.day).toList();
+
+    final profile = ref.read(userProfileProvider);
+    final exerciseType = profile.dailyExerciseType;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
         return Container(
@@ -406,158 +518,399 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
             border: Border.all(color: AppColors.border, width: 1.5),
           ),
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    formattedDate,
-                    style: GoogleFonts.instrumentSerif(
-                      fontSize: 24,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (entry == null) ...[
-                Text(
-                  'No journal logged for this day.',
-                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showEditEntrySheet(context, ref, date);
-                    },
-                    child: Text('Create Log Entry', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ] else ...[
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: entry.didStudy
-                            ? AppColors.green.withValues(alpha: 0.15)
-                            : AppColors.red.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        entry.didStudy ? 'Studied' : 'Missed Day',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: entry.didStudy ? AppColors.green : AppColors.red,
-                        ),
+                    Text(
+                      formattedDate,
+                      style: GoogleFonts.instrumentSerif(
+                        fontSize: 24,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Focus: $moodText',
-                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                if (entry.didStudy) ...[
-                  _buildDetailRow(Icons.schedule_rounded, 'Hours studied', '${entry.hoursStudied.toStringAsFixed(1)} hrs'),
-                  const SizedBox(height: 12),
-                  _buildDetailRow(Icons.topic_rounded, 'Topics covered', '${entry.topicsCount} topics'),
-                ] else ...[
-                  _buildDetailRow(Icons.cancel_outlined, 'Missed reason', entry.missedReason ?? 'Unspecified', color: AppColors.red),
-                ],
-                
-                // Show physical exercise tracker in daily details summary
-                if (ref.read(userProfileProvider).dailyExerciseType != null) ...[
-                  const SizedBox(height: 12),
-                  _buildDetailRow(
-                    Icons.directions_run_rounded,
-                    ref.read(userProfileProvider).dailyExerciseType!,
-                    entry.didExercise == true
-                        ? (entry.exerciseNote != null && entry.exerciseNote!.isNotEmpty
-                            ? 'Completed (${entry.exerciseNote})'
-                            : 'Completed ✅')
-                        : 'Skipped (${entry.missedExerciseReason ?? 'No reason registered'}) ❌',
-                    color: entry.didExercise == true ? AppColors.green : AppColors.textMuted,
-                  ),
-                ],
+                const SizedBox(height: 16),
 
-                if (entry.goal != null && entry.goal!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
+                // Logged Study Sessions Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Study Sessions',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Builder(
+                      builder: (context) {
+                        final isAccountable = entry != null && !entry.didStudy && entry.missedReason != null;
+                        return TextButton.icon(
+                          onPressed: isAccountable ? null : () {
+                            Navigator.pop(context);
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => SessionLogSheet(ref: ref, initialDate: date),
+                            );
+                          },
+                          icon: Icon(
+                            Icons.add_rounded,
+                            size: 16,
+                            color: isAccountable ? AppColors.textMuted : AppColors.gold,
+                          ),
+                          label: Text(
+                            'Log Session',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: isAccountable ? AppColors.textMuted : AppColors.gold,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (sessions.isEmpty)
                   Text(
-                    'Goal / Thought of the Day',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                    'No study sessions logged for this day.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      color: AppColors.textMuted,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  )
+                else
+                  Column(
+                    children: sessions.map((session) {
+                      final durationHours = session.durationMinutes / 60.0;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        session.subjectName,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        '${durationHours.toStringAsFixed(1)}h',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.gold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (session.topicsCovered.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      session.topicsCovered.join(', '),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.5,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.gold),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (_) => SessionLogSheet(
+                                    ref: ref,
+                                    editingSession: session,
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.red),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: AppColors.surface,
+                                    title: Text('Delete Session?', style: GoogleFonts.instrumentSerif(fontSize: 20)),
+                                    content: Text('Are you sure you want to delete this study session?', style: GoogleFonts.inter(fontSize: 13)),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.textMuted)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: Text('Delete', style: GoogleFonts.inter(color: AppColors.red, fontWeight: FontWeight.w600)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  await ref.read(sessionProvider.notifier).deleteSession(session.id);
+                                  Navigator.pop(context); // close details sheet
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Study session deleted successfully.'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
-                  const SizedBox(height: 6),
+                if (entry != null && !entry.didStudy && sessions.isEmpty) ...[
+                  const Divider(height: 32, color: AppColors.border),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Accountability Log',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          GapResolverSheet.show(context, ref, [date]);
+                        },
+                        icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.gold),
+                        label: Text(
+                          'Edit Reason',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.goldSurface.withValues(alpha: 0.1),
+                      color: AppColors.red.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.15)),
+                      border: Border.all(color: AppColors.red.withValues(alpha: 0.2)),
                     ),
-                    child: Text(
-                      entry.goal!,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.gold,
-                        height: 1.4,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.cancel_outlined, size: 16, color: AppColors.red),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Study Missed: ${entry.missedReason ?? "Unspecified"}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (entry.note != null && entry.note!.isNotEmpty && !entry.note!.startsWith('Missed study day reason:')) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            entry.note!,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
 
-                if (entry.note != null && entry.note!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'Journal Note',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    entry.note!,
-                    style: GoogleFonts.inter(
-                      fontSize: 13.5,
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
+                const Divider(height: 32, color: AppColors.border),
+
+                // Fitness Section
+                if (exerciseType != null) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '$exerciseType Log',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      TextButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _showEditEntrySheet(context, ref, date);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => FitnessLogSheet(ref: ref, initialDate: date),
+                          );
                         },
-                        child: Text('Edit Log', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                        icon: const Icon(Icons.add_rounded, size: 16, color: AppColors.green),
+                        label: Text(
+                          'Log $exerciseType',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w600),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (entry == null || entry.didExercise == null)
+                    Text(
+                      'No fitness logged for this day.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        color: AppColors.textMuted,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else ...[
+                    Builder(
+                      builder: (context) {
+                        final activityName = _extractActivity(entry.exerciseNote, exerciseType);
+                        final noteContent = _extractNoteContent(entry.exerciseNote);
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    entry.didExercise == true ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                                    size: 16,
+                                    color: entry.didExercise == true ? AppColors.green : AppColors.red,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    entry.didExercise == true ? '$activityName - Completed' : 'Skipped',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: entry.didExercise == true ? AppColors.green : AppColors.red,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.green),
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => FitnessLogSheet(ref: ref, initialDate: date),
+                                      );
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                              if (entry.didExercise == true && noteContent.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  noteContent,
+                                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary),
+                                ),
+                              ] else if (entry.didExercise == false && entry.missedExerciseReason != null && entry.missedExerciseReason!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Reason: ${entry.missedExerciseReason!}',
+                                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }
                     ),
                   ],
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
     );
+  }
+
+  String _extractActivity(String? note, String defaultActivity) {
+    if (note == null) return defaultActivity;
+    if (note.startsWith('[') && note.contains(']')) {
+      return note.substring(1, note.indexOf(']'));
+    }
+    return defaultActivity;
+  }
+
+  String _extractNoteContent(String? note) {
+    if (note == null) return '';
+    if (note.startsWith('[') && note.contains(']')) {
+      final end = note.indexOf(']');
+      if (end + 1 < note.length) {
+        return note.substring(end + 1).trim();
+      }
+      return '';
+    }
+    return note;
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value, {Color? color}) {
@@ -750,12 +1103,19 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
               style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textMuted),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildToggleButton(true, 'Yes, I studied', AppColors.green),
-                const SizedBox(width: 12),
-                _buildToggleButton(false, 'No, I missed it', AppColors.red),
-              ],
+            Builder(
+              builder: (context) {
+                final hasAccountability = widget.initialEntry != null && 
+                    !widget.initialEntry!.didStudy && 
+                    widget.initialEntry!.missedReason != null;
+                return Row(
+                  children: [
+                    _buildToggleButton(true, 'Yes, I studied', AppColors.green, disabled: hasAccountability),
+                    const SizedBox(width: 12),
+                    _buildToggleButton(false, 'No, I missed it', AppColors.red, disabled: hasAccountability),
+                  ],
+                );
+              }
             ),
             const SizedBox(height: 20),
 
@@ -1052,20 +1412,24 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
     );
   }
 
-  Widget _buildToggleButton(bool val, String label, Color activeColor) {
+  Widget _buildToggleButton(bool val, String label, Color activeColor, {bool disabled = false}) {
     final isSelected = _didStudy == val;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _didStudy = val),
+        onTap: disabled ? null : () => setState(() => _didStudy = val),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor.withValues(alpha: 0.15) : AppColors.surfaceElevated,
+            color: isSelected 
+                ? (disabled ? AppColors.border.withValues(alpha: 0.2) : activeColor.withValues(alpha: 0.15))
+                : AppColors.surfaceElevated,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? activeColor : AppColors.border,
+              color: isSelected 
+                  ? (disabled ? AppColors.textMuted : activeColor)
+                  : AppColors.border,
               width: 1.5,
             ),
           ),
@@ -1074,7 +1438,9 @@ class _JournalEditSheetState extends State<_JournalEditSheet> {
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? activeColor : AppColors.textSecondary,
+              color: isSelected 
+                  ? (disabled ? AppColors.textMuted : activeColor)
+                  : AppColors.textSecondary,
             ),
           ),
         ),

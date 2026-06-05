@@ -6,6 +6,7 @@ import '../models/study_session.dart';
 import '../utils/supabase_service.dart';
 import 'user_provider.dart';
 import 'syllabus_provider.dart';
+import 'revision_provider.dart';
 import '../models/user_profile.dart';
 
 final sessionProvider =
@@ -34,9 +35,63 @@ class SessionNotifier extends StateNotifier<List<StudySession>> {
       final list = jsonDecode(json) as List;
       state = list.map((e) => StudySession.fromJson(e)).toList();
     } else {
-      state = [];
+      // Seed initial mock study sessions
+      final mockData = seedMockSessionsIfNeeded();
+      state = mockData;
       await _saveLocalOnly();
     }
+  }
+
+  List<StudySession> seedMockSessionsIfNeeded() {
+    final now = DateTime.now();
+    return [
+      StudySession(
+        id: 's1', date: now, subjectId: 'gs1_indian_heritage',
+        subjectName: 'Indian Heritage & Culture', sectionId: 'upsc_gs1',
+        sectionName: 'GS-1', durationMinutes: 120, examType: 'upsc',
+        topicsCovered: ['Indus Valley Civilisation', 'Vedic Age & Literature'],
+        startTime: const TimeOfDay(hour: 9, minute: 0),
+      ),
+      StudySession(
+        id: 's2', date: now, subjectId: 'gs2_polity',
+        subjectName: 'Indian Constitution & Polity', sectionId: 'upsc_gs2',
+        sectionName: 'GS-2', durationMinutes: 90, examType: 'upsc',
+        topicsCovered: ['Fundamental Rights (Art. 12–35)', 'Parliamentary System'],
+        startTime: const TimeOfDay(hour: 14, minute: 0),
+      ),
+      StudySession(
+        id: 's3', date: now.subtract(const Duration(days: 1)),
+        subjectId: 'gs3_economy', subjectName: 'Indian Economy',
+        sectionId: 'upsc_gs3', sectionName: 'GS-3', durationMinutes: 180,
+        examType: 'upsc',
+        topicsCovered: ['GDP, GNP, NNP — Concepts', 'Fiscal Policy'],
+        startTime: const TimeOfDay(hour: 8, minute: 30),
+      ),
+      StudySession(
+        id: 's4', date: now.subtract(const Duration(days: 2)),
+        subjectId: 'gs1_geography', subjectName: 'Physical & Human Geography',
+        sectionId: 'upsc_gs1', sectionName: 'GS-1', durationMinutes: 150,
+        examType: 'upsc',
+        topicsCovered: ['Plate Tectonics', 'Earthquakes & Volcanism'],
+        startTime: const TimeOfDay(hour: 10, minute: 0),
+      ),
+      StudySession(
+        id: 's5', date: now.subtract(const Duration(days: 3)),
+        subjectId: 'gs4_ethics', subjectName: 'Ethics, Integrity & Aptitude',
+        sectionId: 'upsc_gs4', sectionName: 'GS-4', durationMinutes: 60,
+        examType: 'upsc',
+        topicsCovered: ['Virtue Ethics (Aristotle)', 'Utilitarian Ethics'],
+        startTime: const TimeOfDay(hour: 18, minute: 0),
+      ),
+      StudySession(
+        id: 's6', date: now.subtract(const Duration(days: 4)),
+        subjectId: 'jpsc_jh_history', subjectName: 'History of Jharkhand',
+        sectionId: 'jpsc_prelim2', sectionName: 'Pre GS-II', durationMinutes: 120,
+        examType: 'jpsc',
+        topicsCovered: ['Birsa Munda Movement', 'Santhal Hul 1855'],
+        startTime: const TimeOfDay(hour: 9, minute: 30),
+      ),
+    ];
   }
 
   Future<void> _saveLocalOnly() async {
@@ -56,6 +111,21 @@ class SessionNotifier extends StateNotifier<List<StudySession>> {
   Future<void> addSession(StudySession session) async {
     state = [session, ...state];
     await _save();
+  }
+
+  Future<void> updateSession(StudySession updatedSession) async {
+    state = state.map((s) => s.id == updatedSession.id ? updatedSession : s).toList();
+    await _save();
+
+    if (SupabaseService.instance.isAuthenticated) {
+      try {
+        await SupabaseService.instance.client
+            .from('study_sessions')
+            .upsert(updatedSession.toJson());
+      } catch (e) {
+        debugPrint('Error updating study session in Supabase: $e');
+      }
+    }
   }
 
   Future<void> deleteSession(String id) async {
@@ -79,6 +149,16 @@ class SessionNotifier extends StateNotifier<List<StudySession>> {
       final Set<String> topicsToReset = deletedTopicTitles.difference(remainingTopicTitles);
       if (topicsToReset.isNotEmpty) {
         await ref.read(syllabusProvider.notifier).resetTopicsByTitles(topicsToReset);
+        
+        final revisionNotifier = ref.read(revisionProvider.notifier);
+        for (final topicTitle in topicsToReset) {
+          final matchingItems = revisionNotifier.state
+              .where((r) => r.topicTitle.toLowerCase() == topicTitle.toLowerCase())
+              .toList();
+          for (final item in matchingItems) {
+            await revisionNotifier.removeItem(item.id);
+          }
+        }
       }
     }
 
@@ -124,6 +204,16 @@ class SessionNotifier extends StateNotifier<List<StudySession>> {
 
     if (topicsToReset.isNotEmpty) {
       await ref.read(syllabusProvider.notifier).resetTopicsByTitles(topicsToReset);
+      
+      final revisionNotifier = ref.read(revisionProvider.notifier);
+      for (final topicTitle in topicsToReset) {
+        final matchingItems = revisionNotifier.state
+            .where((r) => r.topicTitle.toLowerCase() == topicTitle.toLowerCase())
+            .toList();
+        for (final item in matchingItems) {
+          await revisionNotifier.removeItem(item.id);
+        }
+      }
     }
 
     if (SupabaseService.instance.isAuthenticated) {
@@ -204,6 +294,15 @@ class SessionNotifier extends StateNotifier<List<StudySession>> {
     for (final s in filteredState) {
       final h = s.startTime.hour;
       map[h] = (map[h] ?? 0) + s.durationHours;
+    }
+    return map;
+  }
+
+  Map<DateTime, double> get heatmapData {
+    final Map<DateTime, double> map = {};
+    for (final s in filteredState) {
+      final dateKey = DateTime(s.date.year, s.date.month, s.date.day);
+      map[dateKey] = (map[dateKey] ?? 0.0) + s.durationHours;
     }
     return map;
   }

@@ -37,7 +37,7 @@ class MainShell extends StatelessWidget {
                 _NavItem(icon: Icons.home_rounded, label: 'Home', index: 0, currentIndex: idx, path: '/dashboard'),
                 _NavItem(icon: Icons.menu_book_rounded, label: 'Syllabus', index: 1, currentIndex: idx, path: '/syllabus'),
                 _NavItem(icon: Icons.flip_rounded, label: 'Revision', index: 2, currentIndex: idx, path: '/revision'),
-                _NavItem(icon: Icons.calendar_month_rounded, label: 'Journey', index: 3, currentIndex: idx, path: '/journey'),
+                _NavItem(icon: Icons.calendar_month_rounded, label: 'Tracker', index: 3, currentIndex: idx, path: '/journey'),
                 _NavItem(icon: Icons.bar_chart_rounded, label: 'Analytics', index: 4, currentIndex: idx, path: '/analytics'),
               ],
             ),

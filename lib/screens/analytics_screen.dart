@@ -547,7 +547,12 @@ class AnalyticsScreen extends ConsumerWidget {
 
   Widget _buildGapReasonAnalysisCard(BuildContext context, WidgetRef ref) {
     final journalEntries = ref.watch(journeyProvider);
-    final gapEntries = journalEntries.where((e) => !e.didStudy && e.missedReason != null).toList();
+    final sessions = ref.watch(sessionProvider);
+    final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+    final gapEntries = journalEntries.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      return !e.didStudy && e.missedReason != null && !studySessionDays.contains(dateOnly);
+    }).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -632,37 +637,110 @@ class AnalyticsScreen extends ConsumerWidget {
                     final count = e.value;
                     final pct = count / totalGaps;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  reason,
-                                  style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                    // Filter entries matching this reason
+                    final datesForReason = gapEntries.where((entry) => entry.missedReason == reason).toList()
+                      ..sort((a, b) => b.date.compareTo(a.date));
+
+                    return GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              backgroundColor: AppColors.surface,
+                              title: Text(
+                                reason,
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                              ),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Dates you logged this obstacle:',
+                                      style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textMuted),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Flexible(
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: datesForReason.length,
+                                        itemBuilder: (context, idx) {
+                                          final entry = datesForReason[idx];
+                                          final dateStr = DateFormat('EEEE, dd MMM yyyy').format(entry.date);
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.calendar_today_rounded, color: AppColors.gold, size: 14),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  dateStr,
+                                                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                '$count times (${(pct * 100).toInt()}%)',
-                                style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: pct,
-                              minHeight: 6,
-                              backgroundColor: AppColors.surfaceElevated,
-                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text(
+                                    'Dismiss',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.gold),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
+                        color: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        reason,
+                                        style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.info_outline_rounded, color: AppColors.gold, size: 12),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '$count times (${(pct * 100).toInt()}%)',
+                                  style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textMuted, fontWeight: FontWeight.w600),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: pct,
+                                minHeight: 6,
+                                backgroundColor: AppColors.surfaceElevated,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }).toList(),

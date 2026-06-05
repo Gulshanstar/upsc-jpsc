@@ -11,6 +11,7 @@ class RevisionItem {
   int revisionCount;
   double easeFactor; // SM-2 ease factor, default 2.5
   int intervalDays; // current interval in days
+  bool lockedForEver; // locked indefinitely
   List<bool> reviewHistory; // true = remembered, false = forgot
 
   RevisionItem({
@@ -26,15 +27,18 @@ class RevisionItem {
     this.revisionCount = 0,
     this.easeFactor = 2.5,
     this.intervalDays = 1,
+    this.lockedForEver = false,
     List<bool>? reviewHistory,
   }) : reviewHistory = reviewHistory ?? [];
 
   bool get isDueToday {
+    if (lockedForEver) return false;
     final now = DateTime.now();
     return nextDueDate.isBefore(DateTime(now.year, now.month, now.day + 1));
   }
 
   bool get isOverdue {
+    if (lockedForEver) return false;
     final now = DateTime.now();
     return nextDueDate.isBefore(DateTime(now.year, now.month, now.day));
   }
@@ -74,6 +78,17 @@ class RevisionItem {
     nextDueDate = DateTime.now().add(Duration(days: intervalDays));
   }
 
+  /// Undo the last review, reverting revisionCount, easeFactor, intervalDays, nextDueDate, and reviewHistory.
+  void revertLastReview(DateTime? prevLastReviewedDate, int prevIntervalDays, double prevEaseFactor) {
+    if (reviewHistory.isEmpty) return;
+    reviewHistory.removeLast();
+    revisionCount--;
+    lastReviewedDate = prevLastReviewedDate;
+    intervalDays = prevIntervalDays;
+    easeFactor = prevEaseFactor;
+    nextDueDate = DateTime.now(); // Put it back to be due immediately (today)
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'topicId': topicId,
@@ -87,6 +102,7 @@ class RevisionItem {
         'revisionCount': revisionCount,
         'easeFactor': easeFactor,
         'intervalDays': intervalDays,
+        'lockedForEver': lockedForEver,
         'reviewHistory': reviewHistory,
       };
 
@@ -105,6 +121,7 @@ class RevisionItem {
         revisionCount: json['revisionCount'] ?? 0,
         easeFactor: (json['easeFactor'] as num?)?.toDouble() ?? 2.5,
         intervalDays: json['intervalDays'] ?? 1,
+        lockedForEver: json['lockedForEver'] ?? false,
         reviewHistory:
             List<bool>.from(json['reviewHistory'] ?? []),
       );

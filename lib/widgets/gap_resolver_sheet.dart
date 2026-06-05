@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../providers/journey_provider.dart';
+import 'session_log_sheet.dart';
 
 class GapResolverSheet extends ConsumerStatefulWidget {
   final List<DateTime> pendingDays;
@@ -27,6 +28,7 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
   String? _selectedReason;
   bool _isBatchMode = false;
   final Set<DateTime> _selectedBatchDays = {};
+  final _customReasonController = TextEditingController();
 
   final List<String> _gapReasons = const [
     'Burnout & mental fatigue',
@@ -37,6 +39,7 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
     'Emergency / unforeseen work',
     'Revision-only day (no new sessions)',
     'Full-day test series / mock exam',
+    'Other',
   ];
 
   @override
@@ -44,6 +47,12 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
     super.initState();
     // Default select all pending days in batch selection mode
     _selectedBatchDays.addAll(widget.pendingDays);
+  }
+
+  @override
+  void dispose() {
+    _customReasonController.dispose();
+    super.dispose();
   }
 
   @override
@@ -225,6 +234,30 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
                       color: AppColors.textPrimary,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => SessionLogSheet(
+                          ref: ref,
+                          initialDate: widget.pendingDays[_currentIndex],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_task_rounded, color: AppColors.gold, size: 16),
+                    label: Text(
+                      'I studied on this day (Log Session)',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -296,6 +329,18 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
               },
             ),
           ),
+          if (_selectedReason == 'Other') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _customReasonController,
+              onChanged: (val) => setState(() {}),
+              style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Enter your custom reason for missing...',
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
 
           // Submit / Advance Button
@@ -303,15 +348,16 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _selectedReason == null
+              onPressed: _selectedReason == null || (_selectedReason == 'Other' && _customReasonController.text.trim().isEmpty)
                   ? null
                   : () async {
                       final journeyNotifier = ref.read(journeyProvider.notifier);
+                      final finalReason = _selectedReason == 'Other' ? _customReasonController.text.trim() : _selectedReason!;
                       
                       if (_isBatchMode) {
                         // Apply selected reason to all checked dates at once
                         for (final day in _selectedBatchDays) {
-                          await journeyNotifier.registerGapReason(day, _selectedReason!);
+                          await journeyNotifier.registerGapReason(day, finalReason);
                         }
                         
                         Navigator.pop(context);
@@ -335,12 +381,13 @@ class _GapResolverSheetState extends ConsumerState<GapResolverSheet> {
                       } else {
                         // Save current single gap reason
                         final day = widget.pendingDays[_currentIndex];
-                        await journeyNotifier.registerGapReason(day, _selectedReason!);
+                        await journeyNotifier.registerGapReason(day, finalReason);
 
                         if (_currentIndex < widget.pendingDays.length - 1) {
                           setState(() {
                             _currentIndex++;
                             _selectedReason = null;
+                            _customReasonController.clear();
                           });
                         } else {
                           // Finished resolving all gaps!
