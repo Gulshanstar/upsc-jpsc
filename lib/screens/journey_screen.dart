@@ -22,8 +22,11 @@ class JourneyScreen extends ConsumerStatefulWidget {
   ConsumerState<JourneyScreen> createState() => _JourneyScreenState();
 }
 
+enum LogFilter { all, studyMissing, fitnessMissing }
+
 class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   bool _isExpanded = false;
+  LogFilter _selectedFilter = LogFilter.all;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +35,24 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
     final journalEntries = ref.read(journeyProvider.notifier).filteredState;
     final journeyNotifier = ref.read(journeyProvider.notifier);
     final sessionNotifier = ref.read(sessionProvider.notifier);
+
+    final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+    final allCount = journalEntries.length;
+    final studyMissingCount = journalEntries.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      return !e.didStudy && !studySessionDays.contains(dateOnly);
+    }).length;
+    final fitnessMissingCount = journalEntries.where((e) => e.didExercise == false).length;
+
+    final filteredEntries = journalEntries.where((e) {
+      if (_selectedFilter == LogFilter.studyMissing) {
+        final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+        return !e.didStudy && !studySessionDays.contains(dateOnly);
+      } else if (_selectedFilter == LogFilter.fitnessMissing) {
+        return e.didExercise == false;
+      }
+      return true;
+    }).toList();
 
     final currentStreak = journeyNotifier.currentStreak;
     final longestStreak = journeyNotifier.longestStreak;
@@ -244,7 +265,7 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                   ).animate().fadeIn(delay: 200.ms),
                 const SizedBox(height: 28),
 
-                Row(
+                 Row(
                   children: [
                     Text(
                       'Recent Log Entries',
@@ -258,23 +279,38 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                if (journalEntries.isEmpty)
+                // Premium Filter Tab Chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip(LogFilter.all, 'All', allCount),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(LogFilter.studyMissing, 'Study Missing', studyMissingCount),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(LogFilter.fitnessMissing, 'Fitness Missing', fitnessMissingCount),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                if (filteredEntries.isEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 40),
                     alignment: Alignment.center,
                     child: Text(
-                      'No journal logs yet. Start typing your logs today!',
+                      'No matching logs found.',
                       style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 13),
                     ),
                   )
                 else ...[
                   // If not expanded, show only 5 items. If expanded, show everything.
-                  ...(_isExpanded ? journalEntries : journalEntries.take(5)).map((entry) {
+                  ...(_isExpanded ? filteredEntries : filteredEntries.take(5)).map((entry) {
                     return _buildJournalCard(context, ref, entry);
                   }).toList().animate(interval: 40.ms).fadeIn().slideY(begin: 0.05),
 
                   // Collapse/Expand toggle wrapper button
-                  if (journalEntries.length > 5) ...[
+                  if (filteredEntries.length > 5) ...[
                     const SizedBox(height: 8),
                     Center(
                       child: InkWell(
@@ -937,6 +973,57 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFilterChip(LogFilter filter, String label, int count) {
+    final isSelected = _selectedFilter == filter;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.goldSurface : AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.gold : AppColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? AppColors.gold : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.gold.withValues(alpha: 0.15) : AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? AppColors.gold : AppColors.textMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
