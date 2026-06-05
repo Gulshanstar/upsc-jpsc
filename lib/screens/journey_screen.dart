@@ -495,83 +495,95 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: hasStudied
-                        ? AppColors.green.withValues(alpha: 0.12)
-                        : AppColors.red.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                (() {
+                  final bool showFitnessBadge = _selectedFilter == LogFilter.fitnessMissing || _selectedFilter == LogFilter.fitnessCompleted;
+                  final String badgeText = showFitnessBadge
+                      ? (entry.didExercise == true ? 'Fitness Done' : 'Fitness Missed')
+                      : (hasStudied ? 'Studied' : 'Missed');
+                  final Color badgeColor = showFitnessBadge
+                      ? (entry.didExercise == true ? AppColors.green : AppColors.red)
+                      : (hasStudied ? AppColors.green : AppColors.red);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: badgeColor,
+                      ),
+                    ),
+                  );
+                })(),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Study Status Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  hasStudied ? Icons.menu_book_rounded : Icons.cancel_outlined,
+                  size: 13,
+                  color: hasStudied ? AppColors.gold : AppColors.red,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: Text(
-                    hasStudied ? 'Studied' : 'Missed',
+                    hasStudied
+                        ? 'Study: ${displayHours.toStringAsFixed(1)} hrs ($displayTopics topics covered)'
+                        : 'Study Missed: ${entry.missedReason ?? "Unspecified"}',
                     style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: hasStudied ? AppColors.green : AppColors.red,
+                      fontSize: 12.5,
+                      fontWeight: hasStudied ? FontWeight.w500 : FontWeight.w600,
+                      color: hasStudied ? AppColors.textSecondary : AppColors.red,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            if (hasStudied) ...[
+            const SizedBox(height: 8),
+            // Fitness Status Row
+            if (entry.didExercise != null) ...[
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.schedule_rounded, size: 13, color: AppColors.textMuted),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${displayHours.toStringAsFixed(1)} hrs',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  Icon(
+                    entry.didExercise == true ? Icons.directions_run_rounded : Icons.cancel_outlined,
+                    size: 13,
+                    color: entry.didExercise == true ? AppColors.green : AppColors.red,
                   ),
-                  const SizedBox(width: 16),
-                  const Icon(Icons.topic_rounded, size: 13, color: AppColors.textMuted),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$displayTopics topics covered',
-                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              if (entry.note != null && entry.note!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  entry.note!,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ] else ...[
-              Row(
-                children: [
-                  const Icon(Icons.cancel_outlined, size: 13, color: AppColors.red),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Reason: ${entry.missedReason ?? "Unspecified"}',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.red,
-                      fontWeight: FontWeight.w500,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.didExercise == true
+                          ? 'Fitness: Completed ${_extractActivity(entry.exerciseNote, "Exercise")}'
+                          : 'Fitness Missed: ${entry.missedExerciseReason ?? "Unspecified"}',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: entry.didExercise == true ? FontWeight.w500 : FontWeight.w600,
+                        color: entry.didExercise == true ? AppColors.textSecondary : AppColors.red,
+                      ),
                     ),
                   ),
                 ],
               ),
-              if (entry.note != null && entry.note!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  entry.note!,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    color: AppColors.textMuted,
-                    fontStyle: FontStyle.italic,
-                  ),
+              const SizedBox(height: 8),
+            ],
+            if (entry.note != null && entry.note!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                entry.note!,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                  fontStyle: FontStyle.italic,
                 ),
-              ],
+              ),
             ],
           ],
         ),
