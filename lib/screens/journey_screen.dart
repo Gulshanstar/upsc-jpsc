@@ -28,7 +28,7 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(journeyProvider);
-    ref.watch(sessionProvider);
+    final sessions = ref.watch(sessionProvider);
     final journalEntries = ref.read(journeyProvider.notifier).filteredState;
     final journeyNotifier = ref.read(journeyProvider.notifier);
     final sessionNotifier = ref.read(sessionProvider.notifier);
@@ -160,10 +160,16 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                   GestureDetector(
                     onTap: () {
                       final now = DateTime.now();
-                      final missedEntries = journalEntries.where((e) =>
-                          e.date.year == now.year &&
-                          e.date.month == now.month &&
-                          !e.didStudy).toList()
+                      final today = DateTime(now.year, now.month, now.day);
+                      final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+                      final missedEntries = journalEntries.where((e) {
+                        final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+                        return e.date.year == now.year &&
+                            e.date.month == now.month &&
+                            dateOnly.isBefore(today) &&
+                            !e.didStudy &&
+                            !studySessionDays.contains(dateOnly);
+                      }).toList()
                         ..sort((a, b) => b.date.compareTo(a.date));
 
                       showDialog(

@@ -157,10 +157,17 @@ class JourneyNotifier extends StateNotifier<List<JournalEntry>> {
 
   int get missedDaysThisMonth {
     final now = DateTime.now();
-    return filteredState.where((e) =>
-        e.date.year == now.year &&
-        e.date.month == now.month &&
-        !e.didStudy).length;
+    final today = DateTime(now.year, now.month, now.day);
+    final sessions = ref.read(sessionProvider);
+    final studySessionDays = sessions.map((s) => DateTime(s.date.year, s.date.month, s.date.day)).toSet();
+    return filteredState.where((e) {
+      final dateOnly = DateTime(e.date.year, e.date.month, e.date.day);
+      return e.date.year == now.year &&
+          e.date.month == now.month &&
+          dateOnly.isBefore(today) &&
+          !e.didStudy &&
+          !studySessionDays.contains(dateOnly);
+    }).length;
   }
 
   double get avgHoursPerStudyDay {
