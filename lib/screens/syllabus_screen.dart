@@ -85,35 +85,37 @@ class _SyllabusScreenState extends ConsumerState<SyllabusScreen> {
         body: Column(
           children: [
             // Filter chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: ['All', 'Not Started', 'In Progress', 'Completed', 'Needs Revision']
-                    .map((f) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: ['All', 'Not Started', 'In Progress', 'Completed', 'Needs Revision']
+                      .map((f) => GestureDetector(
                             onTap: () => setState(() => _filter = f),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: _filter == f ? AppColors.goldSurface : AppColors.surface,
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: _filter == f ? AppColors.gold : AppColors.border,
+                                  width: _filter == f ? 1.2 : 1,
                                 ),
                               ),
                               child: Text(f,
                                   style: GoogleFonts.inter(
-                                    fontSize: 12,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                     color: _filter == f ? AppColors.gold : AppColors.textMuted,
                                   )),
                             ),
-                          ),
-                        ))
-                    .toList(),
+                          ))
+                      .toList(),
+                ),
               ),
             ),
             Expanded(
