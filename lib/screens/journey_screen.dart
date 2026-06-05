@@ -301,23 +301,17 @@ class _JourneyScreenState extends ConsumerState<JourneyScreen> {
                 const SizedBox(height: 12),
 
                 // Premium Filter Tab Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip(LogFilter.all, 'All', allCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip(LogFilter.studyCompleted, 'Study Completed', studyCompletedCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip(LogFilter.fitnessCompleted, 'Fitness Completed', fitnessCompletedCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip(LogFilter.studyMissing, 'Study Missing', studyMissingCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip(LogFilter.fitnessMissing, 'Fitness Missing', fitnessMissingCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip(LogFilter.nothingMissing, 'Nothing Missing', nothingMissingCount),
-                    ],
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildFilterChip(LogFilter.all, 'All', allCount),
+                    _buildFilterChip(LogFilter.studyCompleted, 'Study Completed', studyCompletedCount),
+                    _buildFilterChip(LogFilter.fitnessCompleted, 'Fitness Completed', fitnessCompletedCount),
+                    _buildFilterChip(LogFilter.studyMissing, 'Study Missing', studyMissingCount),
+                    _buildFilterChip(LogFilter.fitnessMissing, 'Fitness Missing', fitnessMissingCount),
+                    _buildFilterChip(LogFilter.nothingMissing, 'Nothing Missing', nothingMissingCount),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
